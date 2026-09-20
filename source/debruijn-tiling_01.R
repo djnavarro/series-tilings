@@ -244,11 +244,23 @@ build_tiling <- function(rhombi, neighbours, scale = 1) {
 
 EPS <- 1e-10
 
+# Default tile palette: qualitative Set3, extended by interpolation if more
+# than 12 distinct rhombus shapes are present. Any function(n) -> character
+# vector of n colours can be substituted via the `palette` argument below.
+default_debruijn_palette <- function(n) {
+  if (n <= 12) {
+    RColorBrewer::brewer.pal(max(3, n), "Set3")[seq_len(n)]
+  } else {
+    colorRampPalette(RColorBrewer::brewer.pal(12, "Set3"))(n)
+  }
+}
+
 # Build the full data structure for one random de Bruijn tiling: draws random
 # phase offsets, computes the grid-line intersections, turns each one into a
 # rhombus, and glues all rhombi into a single assembled tiling. Returns a
 # tidy data frame (one row per tile vertex) ready for ggplot2.
-generate_debruijn_tiling <- function(n_line_families = 5, x_scale = 5, y_scale = 5, rhombus_scale = 1) {
+generate_debruijn_tiling <- function(n_line_families = 5, x_scale = 5, y_scale = 5,
+                                      rhombus_scale = 1, palette = default_debruijn_palette) {
   xlim <- c(-x_scale, x_scale)
   ylim <- c(-y_scale, y_scale)
   offsets <- sample_offsets(n_line_families)
@@ -273,17 +285,21 @@ generate_debruijn_tiling <- function(n_line_families = 5, x_scale = 5, y_scale =
   # distinct rhombus shape gets its own colour -- mirrors the Python original
   bucketed <- round(sapply(rhombi, function(r) r$smallest_angle), 4)
   unique_angles <- sort(unique(bucketed))
-  palette <- if (length(unique_angles) <= 12) {
-    RColorBrewer::brewer.pal(max(3, length(unique_angles)), "Set3")[seq_along(unique_angles)]
-  } else {
-    colorRampPalette(RColorBrewer::brewer.pal(12, "Set3"))(length(unique_angles))
-  }
-  tile_colour <- palette[match(bucketed, unique_angles)]
+  tile_palette <- palette(length(unique_angles))
+  tile_colour <- tile_palette[match(bucketed, unique_angles)]
 
   neighbours <- compute_neighbors(rhombi)
   placed <- build_tiling(rhombi, neighbours, scale = rhombus_scale)
 
-  do.call(rbind, lapply(seq_along(placed), function(idx) {
+  # a handful of rhombi right at the box edge can end up with no shared-line
+  # neighbours (especially with a very asymmetric x_scale/y_scale) and are
+  # never reached by the BFS; drop those rather than erroring
+  reached <- !vapply(placed, is.null, logical(1))
+  if (!all(reached)) {
+    message(sum(!reached), " isolated edge tile(s) dropped from the assembled tiling")
+  }
+
+  do.call(rbind, lapply(which(reached), function(idx) {
     v <- placed[[idx]]
     data.frame(
       tile_id = idx,
@@ -328,4 +344,4 @@ art_generator <- function(seed) {
   ggsave(output, plot = p, width = 10, height = 2, units = "in", dpi = 300, bg = "#ffffff00")
 }
 
-for (seed in 1:5) art_generator(seed)
+for (seed in 1:100) art_generator(seed)
