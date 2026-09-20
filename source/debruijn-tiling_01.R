@@ -321,6 +321,16 @@ plot_debruijn_tiling <- function(tiling) {
     theme_void()
 }
 
+# Probabilistic palette functions via scico
+sample_palette <- function(seed) {
+  known_palettes <- scico::scico_palette_names()
+  palette_name <- sample(known_palettes, 1)
+  palette_fn <- function(n) {
+    scico::scico(n = n, palette = palette_name)
+  }
+  return(palette_fn)
+}
+
 
 # make the art ---------------------------------------------------------------
 
@@ -334,11 +344,17 @@ art_generator <- function(seed) {
 
   # generate high-level parameters for this piece
   n_line_families <- sample(5:9, size = 1)
-  y_scale <- sample(3:5, size = 1)
-  x_scale <- y_scale * 5
+  y_scale <- 3
+  x_scale <- 15
+  palette <- sample_palette(seed)
 
   # generate the tiling data structure and render it
-  tiling <- generate_debruijn_tiling(n_line_families = n_line_families, x_scale = x_scale, y_scale = y_scale)
+  tiling <- generate_debruijn_tiling(
+    n_line_families = n_line_families, 
+    x_scale = x_scale, 
+    y_scale = y_scale,
+    palette = palette
+  )
   p <- plot_debruijn_tiling(tiling)
 
   ggsave(output, plot = p, width = 10, height = 2, units = "in", dpi = 300, bg = "#ffffff00")
